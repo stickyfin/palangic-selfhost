@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Palang IC - Local MyKad Watermark Tool</title>
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --green: #34d399; }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; padding: 2rem 1rem; background: var(--bg); color: var(--text); display: flex; justify-content: center; }
+    .container { max-width: 960px; width: 100%; }
+    h1 { margin: 0 0 0.5rem; font-size: 1.75rem; }
+    h2 { margin: 0; font-size: 1.15rem; }
+    .badge { display: inline-block; background: #064e3b; color: #6ee7b7; padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.8rem; margin-bottom: 1.5rem; }
+    .controls { background: var(--card); padding: 1.25rem; border-radius: 12px; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 1.5rem; }
+    label { display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.85rem; color: var(--muted); }
+    .label-header { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+    .num-wrap { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--text); }
+    input[type="text"], input[type="color"], input[type="number"] {
+      background: #0f172a; border: 1px solid #334155; color: var(--text); padding: 0.45rem 0.5rem; border-radius: 6px;
+    }
+    input[type="number"] { width: 64px; padding: 0.25rem 0.4rem; text-align: right; font-size: 0.85rem; }
+    input[type="range"] { width: 100%; cursor: pointer; }
+    .grid { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .panel { background: var(--card); padding: 1rem; border-radius: 12px; display: flex; flex-direction: column; gap: 0.75rem; }
+    .dropzone { border: 2px dashed #475569; border-radius: 8px; padding: 1.5rem; text-align: center; cursor: pointer; color: var(--muted); }
+    .dropzone:hover { border-color: var(--accent); color: var(--text); }
+    canvas.id-canvas { width: 100%; height: auto; border-radius: 8px; background: #020617; cursor: grab; display: none; }
+    canvas.id-canvas:active { cursor: grabbing; }
+    .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1.5rem; }
+    button { background: var(--accent); color: #0f172a; border: none; padding: 0.65rem 1.1rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    button.a4-btn { background: var(--green); color: #064e3b; }
+    button.secondary { background: #334155; color: var(--text); }
+
+    /* A4 Live Preview Section */
+    .a4-section { background: var(--card); padding: 1.25rem; border-radius: 12px; margin-top: 1.75rem; display: none; }
+    .a4-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
+    .a4-sub { font-size: 0.82rem; color: var(--muted); }
+    .a4-controls { background: #0f172a; padding: 1rem; border-radius: 10px; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 1.25rem; }
+    .a4-stage { background: #020617; padding: 1.5rem; border-radius: 10px; display: flex; justify-content: center; align-items: center; }
+    #a4PreviewCanvas {
+      width: 100%;
+      max-width: 420px;
+      height: auto;
+      background: #ffffff;
+      border-radius: 4px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Palang IC (Self-Hosted)</h1>
+    <div class="badge">100% Browser-Local — Zero Server Uploads</div>
+
+    <div class="controls">
+      <label>Watermark Text (or use #text=...)
+        <input type="text" id="wmText" value="FOR BANKING PURPOSE ONLY" />
+      </label>
+
+      <label>
+        <span class="label-header">
+          <span>Font Size</span>
+          <span class="num-wrap"><input type="number" id="wmSizeNum" min="8" max="200" value="36" />px</span>
+        </span>
+        <input type="range" id="wmSize" min="14" max="90" value="36" />
+      </label>
+
+      <label>
+        <span class="label-header">
+          <span>Rotation</span>
+          <span class="num-wrap"><input type="number" id="wmRotNum" min="-180" max="180" value="-30" />°</span>
+        </span>
+        <input type="range" id="wmRot" min="-90" max="90" value="-30" />
+      </label>
+
+      <label>
+        <span class="label-header">
+          <span>Opacity</span>
+          <span class="num-wrap"><span id="opVal">0.65</span></span>
+        </span>
+        <input type="range" id="wmOp" min="0.1" max="1" step="0.05" value="0.65" />
+      </label>
+
+      <label>Color
+        <input type="color" id="wmColor" value="#ef4444" />
+      </label>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <strong>Front MyKad (Top on A4)</strong>
+        <div class="dropzone" id="frontDrop">Click or drop Front ID (JPG, PNG, HEIC)</div>
+        <input type="file" id="frontInput" accept="image/*,.heic,.heif" hidden />
+        <canvas class="id-canvas" id="frontCanvas"></canvas>
+      </div>
+      <div class="panel">
+        <strong>Back MyKad (Bottom on A4)</strong>
+        <div class="dropzone" id="backDrop">Click or drop Back ID (JPG, PNG, HEIC)</div>
+        <input type="file" id="backInput" accept="image/*,.heic,.heif" hidden />
+        <canvas class="id-canvas" id="backCanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="downloadFront">Download Front PNG</button>
+      <button id="downloadBack">Download Back PNG</button>
+      <button id="downloadCombined">Download Combined PNG</button>
+      <button class="secondary" id="clearAll">Clear Images</button>
+    </div>
+
+    <!-- Live A4 Preview & Resize Section -->
+    <div class="a4-section" id="a4Section">
+      <div class="a4-header">
+        <div>
+          <h2>A4 Combined Preview (Top: Front IC, Bottom: Back IC)</h2>
+          <div class="a4-sub">1240 × 1754 px (A4 Portrait 150 DPI) — Adjust scale &amp; spacing before downloading</div>
+        </div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button class="secondary" id="resetA4">Reset A4 Layout</button>
+          <button class="a4-btn" id="downloadA4">Download A4 PNG</button>
+        </div>
+      </div>
+
+      <div class="a4-controls">
+        <label>
+          <span class="label-header">
+            <span>IC Size on A4</span>
+            <span class="num-wrap"><input type="number" id="a4ScaleNum" min="20" max="100" value="75" />%</span>
+          </span>
+          <input type="range" id="a4Scale" min="25" max="100" value="75" />
+        </label>
+
+        <label>
+          <span class="label-header">
+            <span>Gap Between Top &amp; Bottom</span>
+            <span class="num-wrap"><input type="number" id="a4GapNum" min="0" max="400" value="80" />px</span>
+          </span>
+          <input type="range" id="a4Gap" min="0" max="300" value="80" />
+        </label>
+
+        <label>
+          <span class="label-header">
+            <span>Top Offset</span>
+            <span class="num-wrap"><input type="number" id="a4TopNum" min="20" max="600" value="140" />px</span>
+          </span>
+          <input type="range" id="a4Top" min="40" max="500" value="140" />
+        </label>
+      </div>
+
+      <div class="a4-stage">
+        <canvas id="a4PreviewCanvas" width="1240" height="1754"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      front: { img: null, x: 0.5, y: 0.5, dragging: false },
+      back: { img: null, x: 0.5, y: 0.5, dragging: false }
+    };
+
+    const wmText = document.getElementById('wmText');
+    const wmSize = document.getElementById('wmSize');
+    const wmSizeNum = document.getElementById('wmSizeNum');
+    const wmRot = document.getElementById('wmRot');
+    const wmRotNum = document.getElementById('wmRotNum');
+    const wmOp = document.getElementById('wmOp');
+    const wmColor = document.getElementById('wmColor');
+
+    const a4Scale = document.getElementById('a4Scale');
+    const a4ScaleNum = document.getElementById('a4ScaleNum');
+    const a4Gap = document.getElementById('a4Gap');
+    const a4GapNum = document.getElementById('a4GapNum');
+    const a4Top = document.getElementById('a4Top');
+    const a4TopNum = document.getElementById('a4TopNum');
+
+    function bindSliderAndNumber(slider, numInput, callback) {
+      slider.addEventListener('input', () => {
+        numInput.value = slider.value;
+        callback();
+      });
+      numInput.addEventListener('input', () => {
+        const val = parseFloat(numInput.value);
+        if (!Number.isNaN(val)) {
+          slider.value = Math.min(parseFloat(slider.max), Math.max(parseFloat(slider.min), val));
+          callback();
+        }
+      });
+      numInput.addEventListener('blur', () => {
+        if (numInput.value === '' || Number.isNaN(parseFloat(numInput.value))) {
+          numInput.value = slider.value;
+          callback();
+        }
+      });
+    }
+
+    bindSliderAndNumber(wmSize, wmSizeNum, renderAll);
+    bindSliderAndNumber(wmRot, wmRotNum, renderAll);
+    bindSliderAndNumber(a4Scale, a4ScaleNum, renderA4Preview);
+    bindSliderAndNumber(a4Gap, a4GapNum, renderA4Preview);
+    bindSliderAndNumber(a4Top, a4TopNum, renderA4Preview);
+
+    function applyHash() {
+      const match = window.location.hash.match(/text=([^&]+)/);
+      if (match) wmText.value = decodeURIComponent(match[1]);
+    }
+    window.addEventListener('hashchange', () => { applyHash(); renderAll(); });
+    applyHash();
+
+    function renderSide(side) {
+      const canvas = document.getElementById(side + 'Canvas');
+      const s = state[side];
+      if (!s.img) { canvas.style.display = 'none'; return; }
+
+      canvas.style.display = 'block';
+      const maxW = 1000;
+      const scale = s.img.width > maxW ? maxW / s.img.width : 1;
+      canvas.width = s.img.width * scale;
+      canvas.height = s.img.height * scale;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(s.img, 0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.globalAlpha = parseFloat(wmOp.value);
+      ctx.translate(canvas.width * s.x, canvas.height * s.y);
+
+      const rawRot = parseFloat(wmRotNum.value);
+      const deg = Number.isNaN(rawRot) ? parseFloat(wmRot.value) : rawRot;
+      ctx.rotate((deg * Math.PI) / 180);
+
+      const rawSize = parseFloat(wmSizeNum.value);
+      const baseSize = Number.isNaN(rawSize) ? parseFloat(wmSize.value) : rawSize;
+      const fontSize = Math.max(4, baseSize) * (canvas.width / 500);
+
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.fillStyle = wmColor.value;
+      ctx.strokeStyle = wmColor.value;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const text = wmText.value || 'SAMPLE ONLY';
+      const textWidth = ctx.measureText(text).width;
+      const lineLen = Math.max(textWidth + 60, canvas.width * 0.6);
+
+      ctx.lineWidth = Math.max(2, fontSize * 0.08);
+      ctx.beginPath();
+      ctx.moveTo(-lineLen / 2, -fontSize * 0.85);
+      ctx.lineTo(lineLen / 2, -fontSize * 0.85);
+      ctx.moveTo(-lineLen / 2, fontSize * 0.85);
+      ctx.lineTo(lineLen / 2, fontSize * 0.85);
+      ctx.stroke();
+
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    }
+
+    function renderA4Preview() {
+      const a4Section = document.getElementById('a4Section');
+      const hasAny = Boolean(state.front.img || state.back.img);
+      a4Section.style.display = hasAny ? 'block' : 'none';
+      if (!hasAny) return;
+
+      const out = document.getElementById('a4PreviewCanvas');
+      const a4Width = 1240;
+      const a4Height = 1754;
+      out.width = a4Width;
+      out.height = a4Height;
+
+      const ctx = out.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, a4Width, a4Height);
+
+      const f = document.getElementById('frontCanvas');
+      const b = document.getElementById('backCanvas');
+
+      const scalePct = Math.min(100, Math.max(10, parseFloat(a4ScaleNum.value) || 75)) / 100;
+      const gap = Math.max(0, parseFloat(a4GapNum.value) || 0);
+      let currentY = Math.max(0, parseFloat(a4TopNum.value) || 0);
+
+      // Target width on A4 based on percentage of A4 page width
+      const targetW = a4Width * scalePct;
+      // Cap each card height so two cards fit cleanly on A4 if images are tall
+      const maxSingleH = (a4Height - gap) * 0.48;
+
+      function drawCardOnA4(srcCanvas) {
+        let scale = targetW / srcCanvas.width;
+        if (srcCanvas.height * scale > maxSingleH) {
+          scale = maxSingleH / srcCanvas.height;
+        }
+        const drawW = srcCanvas.width * scale;
+        const drawH = srcCanvas.height * scale;
+        const drawX = (a4Width - drawW) / 2;
+        ctx.drawImage(srcCanvas, drawX, currentY, drawW, drawH);
+        currentY += drawH + gap;
+      }
+
+      if (state.front.img) drawCardOnA4(f);
+      if (state.back.img) drawCardOnA4(b);
+    }
+
+    function renderAll() {
+      document.getElementById('opVal').textContent = wmOp.value;
+      renderSide('front');
+      renderSide('back');
+      renderA4Preview();
+    }
+
+    [wmText, wmOp, wmColor].forEach(el => el.addEventListener('input', renderAll));
+
+    async function handleFile(file, side) {
+      if (!file) return;
+      let blob = file;
+      if (/\.heic$/i.test(file.name) || file.type === 'image/heic') {
+        blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+      }
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        state[side].img = img;
+        state[side].x = 0.5;
+        state[side].y = 0.5;
+        renderAll();
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    }
+
+    ['front', 'back'].forEach(side => {
+      const drop = document.getElementById(side + 'Drop');
+      const input = document.getElementById(side + 'Input');
+      const canvas = document.getElementById(side + 'Canvas');
+
+      drop.addEventListener('click', () => input.click());
+      drop.addEventListener('dragover', e => { e.preventDefault(); drop.style.borderColor = '#38bdf8'; });
+      drop.addEventListener('dragleave', () => { drop.style.borderColor = '#475569'; });
+      drop.addEventListener('drop', e => {
+        e.preventDefault();
+        drop.style.borderColor = '#475569';
+        handleFile(e.dataTransfer.files[0], side);
+      });
+      input.addEventListener('change', e => handleFile(e.target.files[0], side));
+
+      const updatePos = e => {
+        if (!state[side].dragging) return;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        state[side].x = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+        state[side].y = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+        renderSide(side);
+        renderA4Preview();
+      };
+
+      canvas.addEventListener('mousedown', () => state[side].dragging = true);
+      window.addEventListener('mouseup', () => state[side].dragging = false);
+      canvas.addEventListener('mousemove', updatePos);
+      canvas.addEventListener('touchstart', () => state[side].dragging = true);
+      window.addEventListener('touchend', () => state[side].dragging = false);
+      canvas.addEventListener('touchmove', e => { e.preventDefault(); updatePos(e); }, { passive: false });
+    });
+
+    function downloadCanvas(canvas, filename) {
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    document.getElementById('downloadFront').onclick = () => {
+      if (state.front.img) downloadCanvas(document.getElementById('frontCanvas'), 'mykad-front-palang.png');
+    };
+    document.getElementById('downloadBack').onclick = () => {
+      if (state.back.img) downloadCanvas(document.getElementById('backCanvas'), 'mykad-back-palang.png');
+    };
+
+    document.getElementById('downloadCombined').onclick = () => {
+      const f = document.getElementById('frontCanvas');
+      const b = document.getElementById('backCanvas');
+      if (!state.front.img && !state.back.img) return;
+      const out = document.createElement('canvas');
+      const w = Math.max(state.front.img ? f.width : 0, state.back.img ? b.width : 0);
+      const h = (state.front.img ? f.height : 0) + (state.back.img ? b.height : 0) + (state.front.img && state.back.img ? 24 : 0);
+      out.width = w; out.height = h;
+      const ctx = out.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      let y = 0;
+      if (state.front.img) { ctx.drawImage(f, (w - f.width) / 2, y); y += f.height + 24; }
+      if (state.back.img) { ctx.drawImage(b, (w - b.width) / 2, y); }
+      downloadCanvas(out, 'mykad-combined-palang.png');
+    };
+
+    document.getElementById('downloadA4').onclick = () => {
+      if (!state.front.img && !state.back.img) return;
+      renderA4Preview();
+      downloadCanvas(document.getElementById('a4PreviewCanvas'), 'mykad-combined-a4-palang.png');
+    };
+
+    document.getElementById('resetA4').onclick = () => {
+      a4Scale.value = a4ScaleNum.value = 75;
+      a4Gap.value = a4GapNum.value = 80;
+      a4Top.value = a4TopNum.value = 140;
+      renderA4Preview();
+    };
+
+    document.getElementById('clearAll').onclick = () => {
+      state.front.img = null;
+      state.back.img = null;
+      renderAll();
+    };
+  </script>
+</body>
+</html>
