@@ -1,6 +1,8 @@
 # palangic-selfhost
 Self hosted website for palang IC
 
+Inspired from: https://www.youjing.dev/palang-ic
+
 # Palang IC (Self-Hosted)
 
 A privacy-first, 100% browser-local MyKad cross-out and watermark web tool. All image processing—including HEIC conversion, interactive canvas watermarking, and A4 top/bottom layout generation—runs strictly inside the user's browser with zero server uploads.
